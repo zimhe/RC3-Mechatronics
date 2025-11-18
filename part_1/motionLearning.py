@@ -3,13 +3,14 @@ import easygui.boxes.button_box
 from dxl_ax12a import AX12a
 import easygui
 from tkinter import filedialog,simpledialog,messagebox
+import tkinter as tk
+from tkinter import ttk
 import argparse
 
 import threading
+import time
 
 import json
-
-#DEVICENAME = "com4"  # Default COM Port
 
 
 # Argument parsing
@@ -43,10 +44,112 @@ commands = (
 startPos = []
 position_buffers = {}
 
-example_position_buffers={0:[200,300,600],
-                          1:[],
-                          2:[]
-                          }
+
+class MotionStatusGUI:
+    def __init__(self, connected_motors):
+        self.connected_motors = connected_motors
+        self.window = None
+        self.labels = {}
+        self.step_label = None
+        self.progress_bar = None
+        self.is_running = False
+        
+    def create_window(self, max_steps):
+        """创建GUI窗口"""
+        self.window = tk.Tk()
+        self.window.title("Motor Learning Status")
+        self.window.geometry("400x300")
+        
+        # 主框架
+        main_frame = ttk.Frame(self.window, padding="10")
+        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        
+        # 标题
+        title_label = ttk.Label(main_frame, text="Motor Position Learning", font=('Arial', 14, 'bold'))
+        title_label.grid(row=0, column=0, columnspan=2, pady=(0, 20))
+        
+        # 步数显示
+        self.step_label = ttk.Label(main_frame, text="Step: 0 / 0", font=('Arial', 12))
+        self.step_label.grid(row=1, column=0, columnspan=2, pady=(0, 10))
+        
+        # 进度条
+        self.progress_bar = ttk.Progressbar(main_frame, mode='determinate')
+        self.progress_bar.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 20))
+        self.progress_bar['maximum'] = max_steps
+        
+        # 电机位置显示
+        positions_frame = ttk.LabelFrame(main_frame, text="Motor Positions", padding="10")
+        positions_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 20))
+        
+        for i, motor_id in enumerate(self.connected_motors):
+            motor_label = ttk.Label(positions_frame, text=f"Motor {motor_id}:")
+            motor_label.grid(row=i, column=0, sticky=tk.W, pady=2)
+            
+            pos_label = ttk.Label(positions_frame, text="0", font=('Courier', 10))
+            pos_label.grid(row=i, column=1, sticky=tk.W, padx=(20, 0), pady=2)
+            
+            self.labels[motor_id] = pos_label
+        
+        # 控制按钮
+        button_frame = ttk.Frame(main_frame)
+        button_frame.grid(row=4, column=0, columnspan=2, pady=(10, 0))
+        
+        self.stop_button = ttk.Button(button_frame, text="Stop Learning", command=self.stop_learning)
+        self.stop_button.pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.close_button = ttk.Button(button_frame, text="Close", command=self.close_window)
+        self.close_button.pack(side=tk.LEFT)
+        
+        # 配置列权重以支持调整大小
+        main_frame.columnconfigure(1, weight=1)
+        self.window.columnconfigure(0, weight=1)
+        self.window.rowconfigure(0, weight=1)
+        
+        self.is_running = True
+        
+        # 设置窗口关闭事件
+        self.window.protocol("WM_DELETE_WINDOW", self.close_window)
+        
+    def update_status(self, step, positions):
+        """更新状态显示"""
+        if not self.window or not self.is_running:
+            return
+            
+        try:
+            # 更新步数
+            max_steps = self.progress_bar['maximum']
+            self.step_label.config(text=f"Step: {step} / {int(max_steps)}")
+            
+            # 更新进度条
+            self.progress_bar['value'] = step
+            
+            # 更新位置
+            for motor_id, position in positions.items():
+                if motor_id in self.labels:
+                    self.labels[motor_id].config(text=f"{position}")
+            
+            # 更新窗口
+            self.window.update_idletasks()
+            self.window.update()
+            
+        except tk.TclError:
+            # 窗口已关闭
+            self.is_running = False
+    
+    def stop_learning(self):
+        """停止学习"""
+        self.is_running = False
+        
+    def close_window(self):
+        """关闭窗口"""
+        self.is_running = False
+        if self.window:
+            self.window.destroy()
+            self.window = None
+    
+    def is_window_open(self):
+        """检查窗口是否打开"""
+        return self.window is not None and self.is_running
 
 
 
@@ -84,31 +187,61 @@ def start_learning(max_steps: int = 300):
         except ValueError:
             easygui.msgbox("Invalid input. Using default value.", title="Error")
 
+
+
     for i in connected_motors:
         motor_controller.disable_torque_ID(i)
         position_buffers[i].clear()
 
     steps = 0
     position_buffers["max_steps"] = max_steps
-
-   
-    while steps < max_steps:
-
-        status="Status: "
-        for i in connected_motors:
-            pos=motor_controller.get_position_ID(i)
-            position_buffers[i].append(pos)
-            status+=f"\nMotor-{i} Position: {pos}"
-        steps += 1
-       
-       
-
     
-    for i in connected_motors:
-        motor_controller.enable_torque_ID(i)
-        motor_controller.set_position_ID(startPos[connected_motors.index(i)], i)
+    # 创建GUI窗口（如果选择使用）
 
-    easygui.msgbox("Learning Completed","",ok_button="Contine?")
+    gui = MotionStatusGUI(connected_motors)
+    gui.create_window(max_steps)
+
+    try:
+        while steps < max_steps:
+            # 检查GUI是否要求停止
+            if gui and not gui.is_window_open():
+                break
+                
+            current_positions = {}
+            status = "Status: "
+            
+            for i in connected_motors:
+                pos = motor_controller.get_position_ID(i)
+                position_buffers[i].append(pos)
+                current_positions[i] = pos
+                status += f"\nMotor-{i} Position: {pos}"
+            
+            steps += 1
+            
+            # 更新GUI（如果存在）
+            if gui and gui.is_window_open():
+                gui.update_status(steps, current_positions)
+                time.sleep(0.1)  # 给GUI一些时间更新
+            else:
+                # 如果没有GUI，打印状态（可选）
+                print(f"Step {steps}/{max_steps}: {current_positions}")
+                time.sleep(0.05)  # 稍微慢一点以便观察
+
+    except KeyboardInterrupt:
+        print("\nLearning interrupted by user")
+    except Exception as e:
+        print(f"Error during learning: {e}")
+    finally:
+        # 清理GUI
+        if gui:
+            gui.close_window()
+        
+        # 恢复电机设置
+        for i in connected_motors:
+            motor_controller.enable_torque_ID(i)
+            motor_controller.set_position_ID(startPos[connected_motors.index(i)], i)
+
+        easygui.msgbox(f"Learning Completed! Recorded {steps} steps.", "", ok_button="Continue?")
 
 
 def save_motion():
@@ -116,8 +249,6 @@ def save_motion():
         filetypes=["*.json"], title="save motion", msg="saving motion to file"
     )
 
-    #path=filedialog.asksaveasfilename(filetypes=["*.json"],title="save motion")
-    
     print(path)
 
     if path is None:
@@ -151,13 +282,6 @@ def load_motion():
             pos=motions[str(i)][steps]
             motor_controller.set_position_ID(pos, i)
             status+=f"\nMotor-{i} Position: {pos}"
-
-        # easygui.msgbox(
-        #     msg=f"{status}", 
-        #     title="Moving Progress")
-        
-        #messagebox.showinfo(status)
-           
 
         steps += 1
 
@@ -202,7 +326,7 @@ def quit_program():
 # GUI Functionality
 functions = {
     "Restore Positions": restore_positions,
-    "Start Learning": lambda: start_learning(300),
+    "Start Learning": lambda: start_learning(max_learning_steps),
     "Save Motion": save_motion,
     "Load Motion": load_motion,
     "Disable Torque": disable_torque,
