@@ -1,0 +1,6 @@
+dynamixel-sdk 
+pyserial 
+python-osc 
+pyFirmata
+easygui
+tk
