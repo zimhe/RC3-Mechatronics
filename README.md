@@ -56,7 +56,7 @@ RC3-Mechatronics/
 
 1. **Clone the repository:**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/zimhe/RC3-Mechatronics.git
    cd RC3-Mechatronics
    ```
 
