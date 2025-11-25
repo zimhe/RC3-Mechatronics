@@ -4,6 +4,9 @@
 import dxl_control_osc, my_osc_server
 from osc_commond_patterns import *
 
+print(f"Starting OSC Server on {my_osc_server.address}")
+print("Registering OSC callbacks...")
+
 
 my_osc_server.dispatch_callback(START_OSC, dxl_control_osc.start_osc)
 

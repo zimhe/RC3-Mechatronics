@@ -2,23 +2,36 @@ import sys
 import os
 from os import path
 
-#print(path.abspath('./part_1'))
-
+# Add project root to Python path
+project_root = path.dirname(path.dirname(path.abspath(__file__)))
+sys.path.append(project_root)
 sys.path.append(os.getcwd())
-sys.path.append(path.abspath('./part_1'))
-
-#print(sys.path)
-
 
 print("Current Dir is: "+os.getcwd())
-
+print("Project Root is: "+project_root)
 
 from part_1.dxl_ax12a import AX12a
-from part_1.ax12a_control_table import *
+
+# Import control table with fallback
+try:
+    from part_1.ax12a_control_table import *
+except ImportError:
+    try:
+        import sys
+        sys.path.append(os.path.join(project_root, 'part_1'))
+        from ax12a_control_table import *
+    except ImportError as e:
+        print(f"Warning: Could not import ax12a_control_table: {e}")
 
 from part_2.my_osc_client import OSC_CLIENT
-
 from part_2.osc_commond_patterns import *
+
+# Alternative import method if above fails
+try:
+    from my_osc_client import OSC_CLIENT
+    from osc_commond_patterns import *
+except ImportError:
+    pass
 
 from typing import Union
 
@@ -34,6 +47,10 @@ class DXL_OSC:
     started = False
 
     def start_client_controller(self, ip, port, devicename):
+        if self.motor_controller is not None:
+            self.motor_controller.disable_torque_group()
+            AX12a.close_port()
+            
         self.client = OSC_CLIENT(ip, int(port))
         self.motor_controller = AX12a(devicename)
 
@@ -139,10 +156,10 @@ def client_started():
 def setup_arduino(pattern,device_name):
     try:
         arduino_control.setup(device_name)
-        dxl_osc_ctrl.client.send_osc(ARD_STARTED, 1)
+        dxl_osc_ctrl.client.send_osc(ARD_SETUP, 1)
     except:
         print('failed setting arduino')
-        dxl_osc_ctrl.client.send_osc(ARD_STARTED, 0)
+        dxl_osc_ctrl.client.send_osc(ARD_SETUP, 0)
     
 def arduino_set_ditital_pin(pattern,pin_mode):
     pin,mode=split_msg(pin_mode)
@@ -159,7 +176,7 @@ def arduino_digital_write(pattern,pin_value):
 def arduino_analog_read(pattern,pin):
     read= arduino_control.analog_read(int(pin))
     value="{}#{}".format(pin, read)
-    dxl_osc_ctrl.client.send_osc(ARD_AREAD, value)
+    dxl_osc_ctrl.client.send_osc(ARD_AREAD, str(value))
     return read
 
 def arduino_analog_write(pattern,pin_value):
@@ -170,7 +187,7 @@ def arduino_analog_write(pattern,pin_value):
 def arduino_digital_read(pattern,pin):
     read=arduino_control.digitl_read(int(pin))
     value="{}#{}".format(pin, read)
-    dxl_osc_ctrl.client.send_osc(ARD_DREAD, value)
+    dxl_osc_ctrl.client.send_osc(ARD_DREAD, str(value))
     return read
 
 # read feedbacks
@@ -178,7 +195,7 @@ def read_position(pattern, _id):
     dxl_osc_ctrl.motor_controller.set_id(int(_id))
     position = dxl_osc_ctrl.motor_controller.get_position()
     value = "{}#{}".format(_id, position)
-    dxl_osc_ctrl.client.send_osc(READ_POS, value)
+    dxl_osc_ctrl.client.send_osc(READ_POS, str(value))
     return position
 
 
@@ -194,7 +211,7 @@ def read_temperature(pattern, _id):
     dxl_osc_ctrl.motor_controller.set_id(int(_id))
     temp = dxl_osc_ctrl.motor_controller.get_temperature()
     value = "{}#{}".format(_id, temp)
-    dxl_osc_ctrl.client.send_osc(READ_TEMP, value)
+    dxl_osc_ctrl.client.send_osc(READ_TEMP, str(value))
     return temp
 
 
@@ -202,7 +219,7 @@ def read_torque_limit(pattern, _id):
     dxl_osc_ctrl.motor_controller.set_id(int(_id))
     torque_limit = dxl_osc_ctrl.motor_controller.get_torque_limit()
     value = "{}#{}".format(_id, torque_limit)
-    dxl_osc_ctrl.client.send_osc(READ_TRQ_LMT, value)
+    dxl_osc_ctrl.client.send_osc(READ_TRQ_LMT, str(value))
     return torque_limit
 
 
@@ -210,7 +227,7 @@ def read_load(pattern, _id):
     dxl_osc_ctrl.motor_controller.set_id(int(_id))
     load = dxl_osc_ctrl.motor_controller.get_load()
     value = "{}#{}".format(_id, load)
-    dxl_osc_ctrl.client.send_osc(READ_LOAD, value)
+    dxl_osc_ctrl.client.send_osc(READ_LOAD, str(value))
     return load
 
 
@@ -218,7 +235,7 @@ def read_is_moving(pattern, _id):
     dxl_osc_ctrl.motor_controller.set_id(int(_id))
     isMoving = dxl_osc_ctrl.motor_controller.is_moving()
     value = "{}#{}".format(_id, isMoving)
-    dxl_osc_ctrl.client.send_osc(READ_MOV, value)
+    dxl_osc_ctrl.client.send_osc(READ_MOV, str(value))
     return isMoving
 
 

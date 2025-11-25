@@ -1,7 +1,22 @@
 from dynamixel_sdk import *
-from ax12a_control_table import *
+try:
+    # Try relative import first (when run from part_1 directory)
+    from ax12a_control_table import *
+except ImportError:
+    # Try absolute import (when run from other directories)
+    try:
+        from part_1.ax12a_control_table import *
+    except ImportError:
+        # Last resort: try direct path import
+        import sys
+        import os
+        current_dir = os.path.dirname(__file__)
+        sys.path.insert(0, current_dir)
+        from ax12a_control_table import *
+
 from dynamixel_sdk import GroupSyncRead
 from dynamixel_sdk import GroupSyncWrite
+import serial.tools.list_ports
 
 # basic class for ax12a control
 class AX12a:
@@ -36,7 +51,7 @@ class AX12a:
 
     @classmethod
     def init(cls, devicename, baudrate=1000000):
-        cls.portHandler = PortHandler(devicename)
+        cls.portHandler = PortHandler(devicename)# is the com3 port name
         cls.packetHandler = PacketHandler(cls.PROTOCOL_VERSION)
         cls.open_port()
         cls.baudrate = baudrate
@@ -401,3 +416,111 @@ def lerp(a, b, t):
 
 def smooth_inout(a, t, N):
     return (N / 2 - (abs(a - N / 2) ** 2) / (N / 2) * t) / (N / 2)
+
+
+def scan_motors(devicename, baudrate=1000000, min_id=0, max_id=253):
+    """Scan for Dynamixel motors on specified port."""
+    portHandler = PortHandler(devicename)
+    packetHandler = PacketHandler(AX12a.PROTOCOL_VERSION)
+
+    if portHandler.openPort():
+        print("Succeeded to open the port")
+    else:
+        print("Failed to open the port")
+        print("Press any key to terminate...")
+        quit()
+
+    if portHandler.setBaudRate(baudrate):
+        print("Succeeded to change the baudrate")
+    else:
+        print("Failed to change the baudrate")
+        print("Press any key to terminate...")
+        quit()
+
+    found_ids = []
+    for dxl_id in range(min_id, max_id + 1):
+        dxl_model_number, dxl_comm_result, dxl_error = packetHandler.read2ByteTxRx(
+            portHandler, dxl_id, ADDR_AX_MODEL_NUMBER_L)
+        if dxl_comm_result == COMM_SUCCESS and dxl_error == 0:
+            print("Found motor with ID: %d, Model Number: %d" % (dxl_id, dxl_model_number))
+            found_ids.append(dxl_id)
+
+    portHandler.closePort()
+    return found_ids
+
+
+def scan_available_ports():
+    """Scan and list all available serial ports."""
+    ports = serial.tools.list_ports.comports()
+    available_ports = []
+    
+    print("Available serial ports:")
+    for port in ports:
+        print(f"Port: {port.device}, Description: {port.description}, Hardware ID: {port.hwid}")
+        available_ports.append(port.device)
+    
+    return available_ports
+
+
+def find_dynamixel_port(baudrate=1000000, min_id=0, max_id=10):
+    """Automatically find the port with Dynamixel motors.
+    
+    Args:
+        baudrate: Communication baudrate
+        min_id: Minimum motor ID to scan
+        max_id: Maximum motor ID to scan (limited to 10 for faster scanning)
+    
+    Returns:
+        tuple: (port_name, found_motor_ids) or (None, []) if no motors found
+    """
+    available_ports = scan_available_ports()
+    
+    if not available_ports:
+        print("No serial ports found!")
+        return None, []
+    
+    print(f"\nScanning for Dynamixel motors on {len(available_ports)} ports...")
+    
+    for port in available_ports:
+        print(f"\nTrying port: {port}")
+        try:
+            found_motors = scan_motors(port, baudrate, min_id, max_id)
+            if found_motors:
+                print(f"✓ Found Dynamixel motors on {port}: {found_motors}")
+                return port, found_motors
+            else:
+                print(f"✗ No Dynamixel motors found on {port}")
+        except Exception as e:
+            print(f"✗ Error scanning {port}: {e}")
+            continue
+    
+    print("\nNo Dynamixel motors found on any available port.")
+    return None, []
+
+
+def auto_connect_dynamixel(baudrate=1000000):
+    """Automatically find and connect to Dynamixel motors.
+    
+    Returns:
+        tuple: (AX12a_instance, port_name, motor_ids) or (None, None, []) if failed
+    """
+    print("Auto-detecting Dynamixel connection...")
+    
+    port, motors = find_dynamixel_port(baudrate)
+    
+    if port and motors:
+        print(f"\nConnecting to {port} with motors: {motors}")
+        try:
+            ax12a_controller = AX12a(port)
+            print(f"Successfully connected to {port}")
+            return ax12a_controller, port, motors
+        except Exception as e:
+            print(f"Failed to create AX12a controller: {e}")
+            return None, None, []
+    else:
+        print("\nConnection failed. Please check:")
+        print("1. USB cable is connected")
+        print("2. Power supply is connected")
+        print("3. Motor IDs are set correctly (0-10)")
+        print("4. Baudrate matches motor settings")
+        return None, None, []

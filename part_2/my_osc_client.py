@@ -10,7 +10,7 @@ class OSC_CLIENT:
 
     @classmethod
     def init(cls, ip, port):
-        cls.out_ip = ip
+        cls.out_ip = str(ip)
         cls.out_port = port
         cls.setup_client()
 
@@ -20,7 +20,7 @@ class OSC_CLIENT:
         print("connected to {} on port {}".format(cls.out_ip,cls.out_port))
 
     def send_osc(self, pattern, value):
-        self.client.send_message(pattern, value)
+        self.client.send_message(address=str(pattern), value=value)
         print("send value: {} pattern : {} to {}".format(value, pattern, self.out_ip))
 
     def __init__(self,ip,port):

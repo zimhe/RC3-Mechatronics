@@ -60,34 +60,163 @@ RC3-Mechatronics/
    cd RC3-Mechatronics
    ```
 
-2. **Install dependencies:**
+2. **Create and activate virtual environment:**
+
+   **On Windows:**
+   ```bash
+   # Create virtual environment
+   python -m venv venv
+   
+   # Activate virtual environment
+   venv\Scripts\activate
+   ```
+
+   **On Mac/Linux:**
+   ```bash
+   # Create virtual environment
+   python3 -m venv venv
+   
+   # Activate virtual environment
+   source venv/bin/activate
+   ```
+
+3. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Hardware Setup:**
+4. **Hardware Setup:**
    - Connect your Dynamixel servos to the USB2AX adapter
    - Connect the adapter to your computer
-   - Note the COM port (e.g., COM3 on Windows, /dev/ttyUSB0 on Linux)
+   - Find the COM port using the methods below:
 
-4. **Configure and test:**
+   **Finding COM Port on Windows:**
+   
+   **Method 1: Device Manager (Most Reliable)**
+   ```
+   1. Press Win + X, select "Device Manager"
+   2. Expand "Ports (COM & LPT)" section
+   3. Look for entries like:
+      - "USB Serial Port (COM3)"
+      - "USB-SERIAL CH340 (COM4)"
+      - "Arduino Uno (COM5)"
+   4. Note the COM number in parentheses
+   ```
+   
+   **Method 2: Using Python (Recommended for programmers)**
+   ```python
+   import serial.tools.list_ports
+   
+   # List all available ports
+   ports = serial.tools.list_ports.comports()
+   for port in ports:
+       print(f"Port: {port.device}, Description: {port.description}")
+   ```
+   
+   **Method 3: Using PowerShell (Alternative)**
+   ```powershell
+   # For newer Windows versions (Windows 10/11)
+   Get-PnpDevice -Class Ports | Where-Object {$_.Status -eq "OK"}
+   
+   # Alternative command
+   [System.IO.Ports.SerialPort]::getportnames()
+   ```
+   
+   **Method 4: Command Prompt (Legacy)**
+   ```cmd
+   # Simple port listing
+   mode
+   
+   # More detailed (may not work on all systems)
+   wmic path win32_serialport get deviceid,name,description
+   ```
+
+   **Finding COM Port on Mac:**
+   ```bash
+   # List all serial devices
+   ls /dev/tty.*
+   
+   # Look for devices like /dev/tty.usbserial-* or /dev/tty.usbmodem-*
+   # Common patterns:
+   # - /dev/tty.usbserial-XXXXXXXX
+   # - /dev/tty.usbmodem-XXXXXXXX
+   
+   # Get detailed information
+   system_profiler SPUSBDataType
+   ```
+
+   **Finding COM Port on Linux:**
+   ```bash
+   # List all serial devices
+   ls /dev/tty*
+   
+   # Look for USB devices (common patterns):
+   ls /dev/ttyUSB* /dev/ttyACM*
+   
+   # Get detailed device information
+   dmesg | grep tty
+   
+   # Show USB devices
+   lsusb
+   
+   # Get more details about serial ports
+   setserial -g /dev/ttyUSB* /dev/ttyACM* 2>/dev/null
+   ```
+
+   **Note:** Typical port names:
+   - **Windows**: COM3, COM4, COM5, etc.
+   - **Mac**: /dev/tty.usbserial-XXXXXXXX, /dev/tty.usbmodem-XXXXXXXX
+   - **Linux**: /dev/ttyUSB0, /dev/ttyUSB1, /dev/ttyACM0, etc.
+
+   **Auto-Detection (Recommended):**
+   ```python
+   # If you don't know the port name, use auto-detection
+   from part_1.dxl_ax12a import auto_connect_dynamixel, find_dynamixel_port, scan_available_ports
+   
+   # Method 1: Full auto-connection (easiest)
+   controller, port, motors = auto_connect_dynamixel()
+   if controller:
+       print(f"Connected to {port} with motors: {motors}")
+   
+   # Method 2: Just find the port and motor IDs
+   port, motors = find_dynamixel_port()
+   if port:
+       print(f"Found motors {motors} on port {port}")
+       controller = AX12a(port)
+   
+   # Method 3: Just list available ports
+   available_ports = scan_available_ports()
+   ```
+
+5. **Configure and test:**
    - Open `00_install_and_environment_config.ipynb` in Jupyter
    - Follow the setup instructions
    - Test your hardware configuration
 
 ### Basic Usage
 
+
+
 #### 1. Simple Motor Control
 
 ```python
 from part_1.dxl_ax12a import AX12a
 
-# Initialize controller
+# Method 1: Manual port specification
 motor_controller = AX12a('COM3')  # Replace with your COM port
 
-# Control a motor (ID = 1)
-motor_controller.set_position_ID(512, 1)  # Move to center position
-position = motor_controller.get_position_ID(1)  # Read current position
+# Method 2: Auto-detection (recommended)
+from part_1.dxl_ax12a import auto_connect_dynamixel
+controller, port, motors = auto_connect_dynamixel()
+
+if controller:
+    print(f"Auto-connected to {port} with motors: {motors}")
+    # Control a motor (use first detected motor ID)
+    motor_id = motors[0] if motors else 1
+    controller.set_position_ID(512, motor_id)  # Move to center position
+    position = controller.get_position_ID(motor_id)  # Read current position
+else:
+    print("No Dynamixel motors detected. Check connections.")
 ```
 
 #### 2. Motion Learning with GUI
