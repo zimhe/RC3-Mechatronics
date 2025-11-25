@@ -171,24 +171,22 @@ def arduino_set_analog_pin(pattern,pin_mode):
 
 def arduino_digital_write(pattern,pin_value):
     pin,value=split_msg(pin_value)
-    return arduino_control.digitl_write(int(pin),int(value))
+    arduino_control.digitl_write(int(pin),int(value))
 
 def arduino_analog_read(pattern,pin):
     read= arduino_control.analog_read(int(pin))
     value="{}#{}".format(pin, read)
     dxl_osc_ctrl.client.send_osc(ARD_AREAD, str(value))
-    return read
 
 def arduino_analog_write(pattern,pin_value):
     pin,value=split_msg(pin_value)
-    return arduino_control.analog_write(int(pin),int(value))
+    arduino_control.analog_write(int(pin),int(value))
 
 
 def arduino_digital_read(pattern,pin):
     read=arduino_control.digitl_read(int(pin))
     value="{}#{}".format(pin, read)
     dxl_osc_ctrl.client.send_osc(ARD_DREAD, str(value))
-    return read
 
 # read feedbacks
 def read_position(pattern, _id):
@@ -196,7 +194,6 @@ def read_position(pattern, _id):
     position = dxl_osc_ctrl.motor_controller.get_position()
     value = "{}#{}".format(_id, position)
     dxl_osc_ctrl.client.send_osc(READ_POS, str(value))
-    return position
 
 
 def read_speed(pattern, _id):
@@ -204,7 +201,6 @@ def read_speed(pattern, _id):
     speed = dxl_osc_ctrl.motor_controller.get_present_speed()
     value = "{}#{}".format(_id, speed)
     dxl_osc_ctrl.client.send_osc(READ_SPD, value)
-    return speed
 
 
 def read_temperature(pattern, _id):
@@ -212,7 +208,6 @@ def read_temperature(pattern, _id):
     temp = dxl_osc_ctrl.motor_controller.get_temperature()
     value = "{}#{}".format(_id, temp)
     dxl_osc_ctrl.client.send_osc(READ_TEMP, str(value))
-    return temp
 
 
 def read_torque_limit(pattern, _id):
@@ -220,7 +215,6 @@ def read_torque_limit(pattern, _id):
     torque_limit = dxl_osc_ctrl.motor_controller.get_torque_limit()
     value = "{}#{}".format(_id, torque_limit)
     dxl_osc_ctrl.client.send_osc(READ_TRQ_LMT, str(value))
-    return torque_limit
 
 
 def read_load(pattern, _id):
@@ -228,7 +222,6 @@ def read_load(pattern, _id):
     load = dxl_osc_ctrl.motor_controller.get_load()
     value = "{}#{}".format(_id, load)
     dxl_osc_ctrl.client.send_osc(READ_LOAD, str(value))
-    return load
 
 
 def read_is_moving(pattern, _id):
@@ -236,7 +229,6 @@ def read_is_moving(pattern, _id):
     isMoving = dxl_osc_ctrl.motor_controller.is_moving()
     value = "{}#{}".format(_id, isMoving)
     dxl_osc_ctrl.client.send_osc(READ_MOV, str(value))
-    return isMoving
 
 
 # enable torque
